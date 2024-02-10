@@ -1,7 +1,9 @@
-﻿using EmployeeManagement.Dtos;
+﻿using System;
+using EmployeeManagement.Attributes;
+using EmployeeManagement.Dtos;
 using EmployeeManagement.Models;
+using EmployeeManagement.Services;
 using Microsoft.AspNetCore.Authorization;
-using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 
 namespace EmployeeManagement.Controllers
@@ -10,65 +12,68 @@ namespace EmployeeManagement.Controllers
     [ApiController]
     public class LeaveApplicationController : ControllerBase
     {
+        private readonly ILeaveApplicationService _leaveApplicationService;
 
-        List<LeaveApplication> leaveApplications = DataStore.Instance.LeaveApplications;
-        List<Employee> employees = DataStore.Instance.Employees;
+        public LeaveApplicationController(ILeaveApplicationService leaveApplicationService)
+        {
+            _leaveApplicationService = leaveApplicationService;
+        }
 
         [HttpPost]
         [Authorize]
+        [EmployeeAuthorization("employeeId")]
         public IActionResult Apply([FromRoute] int employeeId, [FromBody] LeaveApplicationDTO leaveApplicationDto)
         {
-            int id = int.Parse(User.Identity.Name);
-            if (id != employeeId)
-                return Unauthorized();
+            try
+            {
+                var leaveApplication = new LeaveApplication
+                {
+                    EmployeeId = employeeId,
+                    Reason = leaveApplicationDto.Reason,
+                    StartDate = leaveApplicationDto.StartDate,
+                    EndDate = leaveApplicationDto.EndDate,
+                    Status = LeaveStatus.Pending
+                };
 
-            LeaveApplication leaveApplication = new()
-             {
-                EmployeeId = id,
-                Reason= leaveApplicationDto.Reason,
-                StartDate= leaveApplicationDto.StartDate,
-                EndDate= leaveApplicationDto.EndDate,
-                Status=LeaveStatus.Pending
-             };
-            DataStore.Instance.LeaveApplications.Add(leaveApplication);
+                _leaveApplicationService.Apply(employeeId, leaveApplication);
 
-            return Ok(leaveApplication);
+                return Ok("Leave application submitted successfully");
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, $"An error occurred: {ex.Message}");
+            }
         }
 
         [HttpGet("{leaveId}")]
         [Authorize]
-        public IActionResult Apply([FromRoute] int employeeId, [FromRoute] int leaveId)
+        [EmployeeAuthorization("employeeId")]
+        public IActionResult GetDetails([FromRoute] int employeeId, [FromRoute] int leaveId)
         {
-            int id = int.Parse(User.Identity.Name);
-            if (id != employeeId)
-                return Unauthorized();
-            LeaveApplication leaveApplication = leaveApplications.Where(x => x.EmployeeId == employeeId && x.Id == leaveId).FirstOrDefault();
-
-            return Ok(leaveApplication);
+            try
+            {
+                var leaveApplication = _leaveApplicationService.GetDetails(employeeId, leaveId);
+                return Ok(leaveApplication);
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, $"An error occurred: {ex.Message}");
+            }
         }
 
         [HttpPut("{leaveId}")]
-        [Authorize(Roles ="Manager")]
+        [Authorize(Roles = "Manager")]
+        [ReporteeManagerAuth("employeeId")]
         public IActionResult Approve([FromRoute] int employeeId, [FromRoute] int leaveId)
         {
-            int id = int.Parse(User.Identity.Name);
-
-             Employee employee=employees.Where(x=>x.Id==employeeId).FirstOrDefault();
-            if (id != employee.ManagerId)
-                return Unauthorized();
-
-            LeaveApplication leaveApplication=leaveApplications.Where(x=>x.EmployeeId==employeeId && x.Id==leaveId).FirstOrDefault();
-
-            if (leaveApplication != null)
+            try
             {
-                leaveApplications.Remove(leaveApplication);
-                leaveApplication.Status = LeaveStatus.Approved;
-                DataStore.Instance.LeaveApplications.Add(leaveApplication);
+                _leaveApplicationService.Approve(employeeId, leaveId);
                 return Ok("Leave application approved successfully");
             }
-            else
+            catch (Exception ex)
             {
-                return NotFound("Leave application not found");
+                return StatusCode(500, $"An error occurred: {ex.Message}");
             }
         }
     }

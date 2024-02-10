@@ -5,9 +5,9 @@ using System.Security.Claims;
 
 namespace EmployeeManagement.Services
 {
-    public class AuthServices
+    public class AuthService: IAuthService
     {
-        public async static void GenerateToken(Employee employee, HttpContext httpContext)
+        public async Task GenerateToken(Employee employee, HttpContext httpContext)
         {
             var claims = new[] {
                 new Claim(ClaimTypes.Name, employee.Id.ToString()),
@@ -19,10 +19,7 @@ namespace EmployeeManagement.Services
                 IsPersistent = false
             };
 
-            await HttpContext.SignInAsync(
-                CookieAuthenticationDefaults.AuthenticationScheme,
-                new ClaimsPrincipal(claimsIdentity),
-                authProperties);
+            await httpContext.SignInAsync(CookieAuthenticationDefaults.AuthenticationScheme, new ClaimsPrincipal(claimsIdentity), authProperties);
         }
     }
 }
